@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+    <meta charset="UTF-8">
+    <title>小五數學：面積拔河大賽</title>
+    <style>
+        body { font-family: "Microsoft JhengHei", sans-serif; background-color: #f0f8ff; margin: 0; padding: 10px; text-align: center; user-select: none; }
+        h1 { margin: 10px 0; color: #333; }
+        .controls { margin-bottom: 20px; }
+        button { font-size: 16px; padding: 10px 15px; margin: 5px; cursor: pointer; border-radius: 5px; border: 1px solid #999; background-color: #fff; }
+        button:hover { background-color: #e0e0e0; }
+        .active-mode { background-color: #4CAF50; color: white; border: 1px solid #388E3C; box-shadow: 0 0 5px rgba(76, 175, 80, 0.5); font-weight: bold;}
+        
+        #game-board { display: none; }
+        #status-bar { display: flex; justify-content: space-between; align-items: center; font-size: 24px; font-weight: bold; background: #fff; padding: 10px 20px; border-radius: 10px; border: 2px solid #ccc; margin-bottom: 20px; }
+        .team-a { color: #d32f2f; }
+        .team-b { color: #1976d2; }
+        
+        /* 拔河繩索設計 */
+        #rope-container { position: relative; width: 80%; height: 40px; background-color: #eee; margin: 0 auto 30px auto; border-radius: 20px; border: 2px solid #ccc; overflow: hidden; }
+        #rope { position: absolute; top: 15px; left: 0; width: 100%; height: 10px; background-color: #8d6e63; }
+        #knot { position: absolute; top: 0; left: 50%; width: 40px; height: 40px; background-color: red; border-radius: 50%; transform: translateX(-50%); transition: left 0.3s ease; box-shadow: 0 0 5px rgba(0,0,0,0.5); }
+        .finish-line { position: absolute; top: 0; width: 4px; height: 100%; background-color: rgba(0,0,0,0.3); }
+        #line-a { left: 10%; }
+        #line-b { right: 10%; }
+        #center-line { left: 50%; width: 2px; background-color: #aaa; border-style: dashed; }
+
+        /* 遊戲區域 */
+        #play-area { display: flex; justify-content: space-around; width: 100%; }
+        .team-zone { width: 45%; background: white; padding: 15px; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); border: 3px solid; display: flex; flex-direction: column; align-items: center; }
+        #zone-a { border-color: #ffcdd2; }
+        #zone-b { border-color: #bbdefb; }
+        
+        /* 題目圖片與回饋 */
+        .question-svg { width: 100%; max-width: 300px; height: 200px; margin: 5px 0; background-color: #f9f9f9; border: 1px dashed #ccc; }
+        .answer-display { font-size: 24px; min-height: 35px; border-bottom: 2px solid #333; width: 80%; margin: 10px 0; letter-spacing: 2px; font-weight: bold; }
+        .feedback-msg { font-size: 20px; font-weight: bold; height: 30px; margin: 5px 0; opacity: 0; transition: opacity 0.3s ease; }
+        
+        /* 虛擬鍵盤 */
+        .numpad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; width: 100%; max-width: 250px; }
+        .numpad button { font-size: 20px; padding: 15px 0; margin: 0; background-color: #f1f1f1; border: 1px solid #ccc; border-radius: 5px; font-weight: bold;}
+        .numpad button:active { background-color: #ddd; }
+        .btn-clear { background-color: #ffcc80 !important; }
+        .btn-submit { background-color: #a5d6a7 !important; grid-column: span 3; font-weight: bold; }
+        
+        #overlay { display: none; position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.9); color: white; font-size: 40px; justify-content: center; align-items: center; z-index: 100; flex-direction: column; text-align: center; padding: 20px;}
+        
+        /* 設定區區塊 */
+        .setting-section { background: white; padding: 15px; border-radius: 10px; border: 2px solid #ddd; margin: 10px auto; max-width: 600px; }
+        .file-upload { font-size: 16px; padding: 10px; margin-top: 10px; border: 1px dashed #999; border-radius: 5px; background: #fafafa; cursor: pointer; width: 80%; }
+    </style>
+</head>
+<body>
+
+    <!-- 隱藏的音軌播放器 -->
+    <audio id="custom-bgm" loop></audio>
+
+    <h1>🏆 小五數學：面積拔河大賽 🏆</h1>
+    
+    <div class="controls" id="setup-screen">
+        <div class="setting-section">
+            <h3>① 選擇遊戲模式：</h3>
+            <button id="btn-mode-1" class="active-mode" onclick="setMode(1)">獨立競速模式 (各自不同題)</button>
+            <button id="btn-mode-2" onclick="setMode(2)">同題搶答模式 (兩隊相同題目)</button>
+        </div>
+
+        <div class="setting-section">
+            <h3>② 選擇比賽時間：</h3>
+            <button id="btn-time-60" onclick="setTime(60)">1 分鐘</button>
+            <button id="btn-time-120" class="active-mode" onclick="setTime(120)">2 分鐘</button>
+            <button id="btn-time-180" onclick="setTime(180)">3 分鐘</button>
+            <button id="btn-time-300" onclick="setTime(300)">5 分鐘</button>
+        </div>
+
+        <div class="setting-section">
+            <h3>🎵 ③ 選擇刺激背景音樂 (可選)：</h3>
+            <input type="file" id="bgm-upload" class="file-upload" accept="audio/*" onchange="loadBGM(event)">
+            <p style="font-size: 14px; color: #666; margin-top: 5px;">(若不選擇，將播放系統內建的緊張心跳聲)</p>
+        </div>
+
+        <br>
+        <button style="font-size: 26px; background-color: #4CAF50; color: white; padding: 15px 40px; border-radius: 10px;" onclick="startGame()">▶ 開始遊戲</button>
+    </div>
+
+    <div id="game-board">
+        <div id="status-bar">
+            <div class="team-a">紅隊 (Team A)</div>
+            <div id="timer">⏱️ 02:00</div>
+            <div class="team-b">藍隊 (Team B)</div>
+        </div>
+
+        <div id="rope-container">
+            <div id="rope"></div>
+            <div class="finish-line" id="line-a"></div>
+            <div class="finish-line" id="center-line"></div>
+            <div class="finish-line" id="line-b"></div>
+            <div id="knot"></div>
+        </div>
+
+        <div id="play-area">
+            <!-- 紅隊區域 -->
+            <div class="team-zone" id="zone-a">
+                <h2 class="team-a">紅隊作答區</h2>
+                <div id="svg-a" class="question-svg"></div>
+                <div class="answer-display" id="ans-a"></div>
+                <div class="feedback-msg" id="msg-a"></div>
+                <div class="numpad" id="pad-a"></div>
+            </div>
+            <!-- 藍隊區域 -->
+            <div class="team-zone" id="zone-b">
+                <h2 class="team-b">藍隊作答區</h2>
+                <div id="svg-b" class="question-svg"></div>
+                <div class="answer-display" id="ans-b"></div>
+                <div class="feedback-msg" id="msg-b"></div>
+                <div class="numpad" id="pad-b"></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="overlay">
+        <div id="win-message">時間到！</div>
+        <button onclick="location.reload()" style="font-size:24px; margin-top:30px; cursor:pointer;">🔄 重新設定 / 重新開始</button>
+    </div>
+
+<script>
+    let mode = 1; 
+    let gameDuration = 120; // 預設 120 秒
+    let score = 0; 
+    let timeLeft = 0; 
+    let gameInterval;
+    let tensionInterval; 
+    let currentAnsA = 0, currentAnsB = 0;
+    let isUsingCustomBGM = false;
+
+    // 載入老師自訂的 MP3 音樂
+    function loadBGM(event) {
+        let file = event.target.files[0];
+        if (file) {
+            let url = URL.createObjectURL(file);
+            let player = document.getElementById('custom-bgm');
+            player.src = url;
+            isUsingCustomBGM = true;
+        }
+    }
+
+    // 即時回饋字庫
+    const praises = ["太棒了！👍", "算得好快！⚡", "非常正確！🎯", "好叻呀！🌟", "做得好！🔥"];
+    const encouragements = ["差一點點！💪", "再試一次！🔍", "小心看清楚底和高👀", "加油！繼續努力🏃"];
+
+    // --- 內建音效系統 ---
+    let audioCtx;
+    function initAudio() {
+        if (!audioCtx) {
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+    }
+
+    // 播放緊張的背景低音脈搏 (若沒有上載音樂才播放)
+    function startTensionBGM() {
+        if (isUsingCustomBGM) return; // 如果有自訂音樂，就不播心跳聲
+
+        let step = 0;
+        tensionInterval = setInterval(() => {
+            if (!audioCtx || timeLeft <= 0) return;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            
+            osc.type = 'triangle'; 
+            
+            let freq = (step % 2 === 0) ? 65 : 70;
+            let vol = 0.05;
+
+            if (timeLeft <= 30) { freq += 15; vol = 0.07; }
+            if (timeLeft <= 10) { freq += 30; vol = 0.09; }
+            
+            osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+            gain.gain.setValueAtTime(0, audioCtx.currentTime);
+            gain.gain.linearRampToValueAtTime(vol, audioCtx.currentTime + 0.05);
+            gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.4);
+            
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.5);
+            step++;
+        }, 500); 
+    }
+
+    function stopTensionBGM() {
+        if (tensionInterval) clearInterval(tensionInterval);
+        if (isUsingCustomBGM) {
+            let player = document.getElementById('custom-bgm');
+            player.pause();
+            player.currentTime = 0;
+        }
+    }
+
+    // 答對、答錯、勝利音效
+    function playSound(type) {
+        if (!audioCtx) return;
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        
+        if (type === 'correct') {
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(880, audioCtx.currentTime); 
+            gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.3);
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.3);
+        } else if (type === 'wrong') {
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(150, audioCtx.currentTime);
+            gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.3);
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.3);
+        } else if (type === 'tick') {
+            osc.type = 'square';
+            osc.frequency.setValueAtTime(1000, audioCtx.currentTime);
+            gain.gain.setValueAtTime(0, audioCtx.currentTime);
+            gain.gain.linearRampToValueAtTime(0.05, audioCtx.currentTime + 0.01);
+            gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.1);
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.1);
+        } else if (type === 'win') {
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(523.25, audioCtx.currentTime); 
+            osc.frequency.setValueAtTime(659.25, audioCtx.currentTime + 0.15); 
+            osc.frequency.setValueAtTime(783.99, audioCtx.currentTime + 0.3); 
+            osc.frequency.setValueAtTime(1046.50, audioCtx.currentTime + 0.45); 
+            gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
+            gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.8);
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.8);
+        }
+    }
+
+    // --- 介面建設 ---
+    function buildNumpad(team) {
+        let pad = document.getElementById('pad-' + team);
+        let html = '';
+        for (let i = 1; i <= 9; i++) {
+            html += `<button onclick="inputNum('${team}', ${i})">${i}</button>`;
+        }
+        html += `<button class="btn-clear" onclick="clearNum('${team}')">清除</button>`;
+        html += `<button onclick="inputNum('${team}', 0)">0</button>`;
+        html += `<button class="btn-submit" onclick="submitAns('${team}')">確認</button>`;
+        pad.innerHTML = html;
+    }
+    buildNumpad('a'); buildNumpad('b');
+
+    // 切換模式設定
+    function setMode(m) {
+        mode = m;
+        document.getElementById('btn-mode-1').classList.remove('active-mode');
+        document.getElementById('btn-mode-2').classList.remove('active-mode');
+        document.getElementById('btn-mode-' + m).classList.add('active-mode');
+    }
+
+    // 切換時間設定
+    function setTime(seconds) {
+        gameDuration = seconds;
+        let timeButtons = [60, 120, 180, 300];
+        timeButtons.forEach(t => {
+            document.getElementById('btn-time-' + t).classList.remove('active-mode');
+        });
+        document.getElementById('btn-time-' + seconds).classList.add('active-mode');
+    }
+
+    // --- 題目生成 ---
+    function R() { return Math.floor(Math.random() * 5) + 2; } 
+    function D() { return Math.floor(Math.random() * 3) + 7; } 
+
+    function generateQuestion() {
+        let shapes = ['triangle', 'parallelogram', 'trapezoid'];
+        let type = shapes[Math.floor(Math.random() * shapes.length)];
+        let b, h, t, d, area;
+        
+        if (type === 'triangle') {
+            do { b = R(); h = R(); } while ((b * h) % 2 !== 0); 
+            d = D(); 
+            area = (b * h) / 2;
+            return { type, b, h, d, area, svg: drawTriangle(b, h, d) };
+        } else if (type === 'parallelogram') {
+            b = R(); h = R();
+            d = D();
+            area = b * h;
+            return { type, b, h, d, area, svg: drawParallelogram(b, h, d) };
+        } else {
+            do { t = Math.floor(Math.random() * 3) + 2; b = Math.floor(Math.random() * 3) + 4; h = R(); } while (((t + b) * h) % 2 !== 0);
+            d = D();
+            area = ((t + b) * h) / 2;
+            return { type, t, b, h, d, area, svg: drawTrapezoid(t, b, h, d) };
+        }
+    }
+
+    function drawTriangle(b, h, d) {
+        return `<svg viewBox="0 0 200 150">
+            <polygon points="50,120 150,120 90,30" fill="#bbdefb" stroke="#1e88e5" stroke-width="2"/>
+            <line x1="90" y1="30" x2="90" y2="120" stroke="black" stroke-dasharray="4"/>
+            <polyline points="90,110 100,110 100,120" fill="none" stroke="black"/>
+            <text x="100" y="140" font-size="16" text-anchor="middle" font-weight="bold">${b} cm</text>
+            <text x="95" y="80" font-size="16" fill="red" font-weight="bold">${h} cm</text>
+            <text x="50" y="70" font-size="16" fill="gray" font-weight="bold">${d} cm</text>
+        </svg>`;
+    }
+
+    function drawParallelogram(b, h, d) {
+        return `<svg viewBox="0 0 200 150">
+            <polygon points="40,120 140,120 160,40 60,40" fill="#c8e6c9" stroke="#43a047" stroke-width="2"/>
+            <line x1="60" y1="40" x2="60" y2="120" stroke="black" stroke-dasharray="4"/>
+            <polyline points="60,110 70,110 70,120" fill="none" stroke="black"/>
+            <text x="90" y="140" font-size="16" text-anchor="middle" font-weight="bold">${b} cm</text>
+            <text x="65" y="80" font-size="16" fill="red" font-weight="bold">${h} cm</text>
+            <text x="160" y="80" font-size="16" fill="gray" font-weight="bold">${d} cm</text>
+        </svg>`;
+    }
+
+    function drawTrapezoid(t, b, h, d) {
+        return `<svg viewBox="0 0 200 150">
+            <polygon points="40,120 160,120 130,40 70,40" fill="#ffe082" stroke="#ffb300" stroke-width="2"/>
+            <line x1="70" y1="40" x2="70" y2="120" stroke="black" stroke-dasharray="4"/>
+            <polyline points="70,110 80,110 80,120" fill="none" stroke="black"/>
+            <text x="100" y="30" font-size="16" text-anchor="middle" font-weight="bold">${t} cm</text>
+            <text x="100" y="140" font-size="16" text-anchor="middle" font-weight="bold">${b} cm</text>
+            <text x="75" y="85" font-size="16" fill="red" font-weight="bold">${h} cm</text>
+            <text x="155" y="85" font-size="16" fill="gray" font-weight="bold">${d} cm</text>
+        </svg>`;
+    }
+
+    function assignQuestions() {
+        if (mode === 1) {
+            let qA = generateQuestion();
+            let qB = generateQuestion();
+            document.getElementById('svg-a').innerHTML = qA.svg;
+            document.getElementById('svg-b').innerHTML = qB.svg;
+            currentAnsA = qA.area; currentAnsB = qB.area;
+        } else {
+            let q = generateQuestion();
+            document.getElementById('svg-a').innerHTML = q.svg;
+            document.getElementById('svg-b').innerHTML = q.svg;
+            currentAnsA = q.area; currentAnsB = q.area;
+        }
+    }
+
+    // --- 遊戲邏輯 ---
+    function startGame() {
+        initAudio(); 
+        
+        // 播放自訂音樂或系統心跳聲
+        if (isUsingCustomBGM) {
+            let player = document.getElementById('custom-bgm');
+            player.volume = 0.5;
+            player.play().catch(e => console.log("音樂播放失敗，請檢查檔案"));
+        } else {
+            startTensionBGM();
+        }
+
+        document.getElementById('setup-screen').style.display = 'none';
+        document.getElementById('game-board').style.display = 'block';
+        score = 0; 
+        timeLeft = gameDuration; 
+        
+        updateUI();
+        assignQuestions();
+        
+        gameInterval = setInterval(() => {
+            timeLeft--;
+            updateUI();
+            
+            // 最後 10 秒加入高音秒針倒數滴答聲
+            if (timeLeft <= 10 && timeLeft > 0) {
+                playSound('tick');
+            }
+
+            if (timeLeft <= 0) endGame();
+        }, 1000);
+    }
+
+    function inputNum(team, num) {
+        let el = document.getElementById('ans-' + team);
+        if (el.innerText.length < 4) el.innerText += num;
+    }
+    function clearNum(team) { document.getElementById('ans-' + team).innerText = ''; }
+
+    function showFeedback(team, isCorrect) {
+        let msgDiv = document.getElementById('msg-' + team);
+        if (isCorrect) {
+            msgDiv.innerText = praises[Math.floor(Math.random() * praises.length)];
+            msgDiv.style.color = '#388E3C'; 
+        } else {
+            msgDiv.innerText = encouragements[Math.floor(Math.random() * encouragements.length)];
+            msgDiv.style.color = '#d32f2f'; 
+        }
+        msgDiv.style.opacity = 1;
+        if (msgDiv.timeoutId) clearTimeout(msgDiv.timeoutId);
+        msgDiv.timeoutId = setTimeout(() => { msgDiv.style.opacity = 0; }, 1500);
+    }
+
+    function submitAns(team) {
+        let el = document.getElementById('ans-' + team);
+        let val = parseInt(el.innerText);
+        if (isNaN(val)) return;
+
+        let isCorrect = false;
+        if (team === 'a' && val === currentAnsA) {
+            score -= 1; 
+            isCorrect = true;
+        } else if (team === 'b' && val === currentAnsB) {
+            score += 1; 
+            isCorrect = true;
+        }
+
+        if (isCorrect) {
+            playSound('correct'); 
+            showFeedback(team, true); 
+            updateRope();
+            
+            if (score <= -5 || score >= 5) { endGame(); return; }
+            
+            if (mode === 1) {
+                if (team === 'a') {
+                    let q = generateQuestion();
+                    document.getElementById('svg-a').innerHTML = q.svg;
+                    currentAnsA = q.area;
+                } else {
+                    let q = generateQuestion();
+                    document.getElementById('svg-b').innerHTML = q.svg;
+                    currentAnsB = q.area;
+                }
+            } else {
+                assignQuestions();
+                clearNum('a'); clearNum('b');
+            }
+        } else {
+            playSound('wrong');
+            showFeedback(team, false); 
+        }
+        clearNum(team);
+    }
+
+    function updateRope() {
+        let pos = 50 + (score * 8); 
+        document.getElementById('knot').style.left = pos + '%';
+    }
+
+    function updateUI() {
+        let m = Math.floor(timeLeft / 60).toString().padStart(2, '0');
+        let s = (timeLeft % 60).toString().padStart(2, '0');
+        document.getElementById('timer').innerText = `⏱️ ${m}:${s}`;
+        updateRope();
+    }
+
+    function endGame() {
+        clearInterval(gameInterval);
+        stopTensionBGM(); 
+        playSound('win'); 
+        
+        let msg = "平局！雙方勢均力敵，都表現得非常出色！👍";
+        
+        if (score < 0) {
+            msg = `🎉 紅隊獲勝！太棒了，運算又快又準！ 🎉<br>
+                   <span style="font-size: 28px; color: #ffcc80; display: block; margin-top: 15px;">
+                   💪 藍隊別氣餒，你們也很努力，下次一定能贏回來！
+                   </span>`;
+        }
+        if (score > 0) {
+            msg = `🎉 藍隊獲勝！反應真快，表現出色！ 🎉<br>
+                   <span style="font-size: 28px; color: #ffcc80; display: block; margin-top: 15px;">
+                   💪 紅隊別氣餒，你們也很努力，下次一定能贏回來！
+                   </span>`;
+        }
+        
+        document.getElementById('win-message').innerHTML = msg;
+        document.getElementById('overlay').style.display = 'flex';
+    }
+</script>
+</body>
+</html>
